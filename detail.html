@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>跨声iOS自建分发平台</title>
+  <link rel="icon" href="https://ky-im-uat.kye-erp.com/app/kuasheng/source/icon.png" type="image/png">
+  <link rel="stylesheet" type="text/css" href="./source/reset.css" />
+  <link rel="stylesheet" type="text/css" href="./source/style.css" />
+  <script src="./source/qrcode.min.js"></script>
+  <script src="./source/vue.global.prod.js"></script>
+</head>
+
+<body>
+  <div id="app">
+    <div class="detail">
+      <div class="main-wrapper">
+        <p class="title">跨声iOS自建分发平台</p>
+        <div id="qrcode"></div>
+        <p class="name">{{ ver_info.app_name }}</p>
+        <p class="ver-name">{{ detail.pack_name }}</p>
+        <div class="ver-item">
+          <span>构建版本：</span>
+          <span>{{ detail.version }}.{{ detail.build_version }}</span>
+        </div>
+        <div class="ver-item">
+          <span>构建用户：</span>
+          <span>{{ detail.build_host_name }}</span>
+        </div>
+        <div class="ver-item">
+          <span>构建环境：</span>
+          <span>{{ detail.build_conf }}</span>
+        </div>
+        <div class="ver-item">
+          <span>构建分支：</span>
+          <span>{{ detail.git_branch }}</span>
+        </div>
+        <div class="ver-item">
+          <span>是否加固：</span>
+          <span>{{ detail.build_encrypt }}</span>
+        </div>
+        <div class="ver-item">
+          <span>构建编号：</span>
+          <span>{{ detail.build_version }}</span>
+        </div>
+        <div class="ver-item">
+          <span>构建时间：</span>
+          <span>{{ detail.build_time }}</span>
+        </div>
+        <a :href="detail.install_link" class="install-link" @click.prevent="installApp">
+          <button class="install-btn">点击安装</button>
+        </a>
+        <!-- 新增TestFlight按钮，条件显示 -->
+        <a v-if="showTestFlight" :href="testFlightLink" class="install-link" @click.prevent="installTestFlight">
+          <button class="install-btn">安装 TestFlight版本</button>
+        </a>
+        <button class="more" @click="goHome">更多历史版本</button>
+        <div v-if="showTestFlight" class="info">
+          <p>说明：由于普通分发版本需要校验证书，如果您是非测试手机，请在 Safari 中打开此页面，然后点击“安装 TestFlight版本”按钮安装。</p>
+        </div>
+      </div>
+      <div class="update-wrapper">
+        <p class="title">更新内容</p>
+        <ul class="update">
+          <li v-for="(item, index) in detail.updates" :key="index">{{ index + 1 }}. {{ item }}</li>
+        </ul>
+      </div>
+    </div>
+    <script>
+      const app = {
+        setup() {
+          const data = Vue.reactive({
+            ver_info: {},
+            detail: {},
+            showTestFlight: false
+          });
+
+          function goHome() {
+            window.location.href = './index.html';
+          }
+
+          function isSafari() {
+            return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+          }
+
+          function installApp() {
+            if (isSafari()) {
+              window.location.href = data.detail.install_link;
+            } else {
+              alert("请在 Safari 中打开此页面点击安装");
+            }
+          }
+
+          function installTestFlight() {
+            if (isSafari()) {
+              window.open('https://testflight.apple.com/join/1JzCCBuR');
+            } else {
+              alert("请在 Safari 中打开此链接以安装 TestFlight 版本");
+            }
+          }
+
+          const urlParams = new URLSearchParams(window.location.search);
+          const param = urlParams.get('ver');
+          const appversion = urlParams.get('appverion');
+          data.showTestFlight = urlParams.get('kyetools') === '1';
+
+          if (!param || !appversion) {
+            goHome();
+          } else {
+            const ipaParam = param + '.ipa';
+
+            // 延迟二维码生成，确保DOM元素已加载
+            Vue.nextTick(() => {
+              const qrcode = new QRCode('qrcode', {
+                text: window.location.href
+              });
+            });
+
+            const JSON_PREV = './Records';
+            fetch(`${JSON_PREV}/${appversion}/build_list.json`, { cache: "no-cache" })
+              .then(response => response.json())
+              .then(res => {
+                data.ver_info = res;
+                const found = res.build_list.some(item => {
+                  if (item.pack_name === ipaParam) {
+                    data.detail = item;
+                    return true;
+                  }
+                  return false;
+                });
+                if (!found) {
+                  console.error('未找到匹配的版本信息');
+                }
+              })
+              .catch(err => {
+                console.error('获取详情时出错:', err);
+              });
+          }
+
+          return { ...Vue.toRefs(data), goHome, installApp, installTestFlight };
+        }
+      };
+      Vue.createApp(app).mount('#app');
+    </script>
+  </div>
+</body>
+
+</html>
